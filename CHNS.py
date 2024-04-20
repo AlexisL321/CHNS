@@ -515,6 +515,7 @@ def time_stepping(m, h, delta_t, t_e, T, x, y, eta, rho, epsilon, M, C0):
 		phi_n_minus = phi_n
 		u_n = u
 		phi_n = phi
+		print("u_n vector:", u_n)
 	
 	for i in range(T - 1):
 		print("i", i)
@@ -527,6 +528,7 @@ def time_stepping(m, h, delta_t, t_e, T, x, y, eta, rho, epsilon, M, C0):
 		u_n_minus = u_n
 		phi_n_minus = phi_n
 		u_n = u
+		print("u_n vetor:", u_n)
 		phi_n = phi
 
 	return u_n, p, phi_n		
