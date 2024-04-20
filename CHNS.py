@@ -536,6 +536,8 @@ def plotting(m, h, delta_t, t_e, T, x, y, eta, rho, epsilon, M, C0):
 						rho, epsilon, M, C0)
 	u_norm = np.sqrt(u[0,:]**2, u[1,:]**2)
 	#X, Y = np.meshgrid(x, y, indexing = 'ij')
+	u_norm = np.reshape(u_norm, (m, m))
+	print("len(X)", len(X))
 	plt.contourf(X, Y, u_norm)
 	plt.axis('scaled')
 	plt.colorbar()
