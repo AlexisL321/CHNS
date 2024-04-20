@@ -110,18 +110,21 @@ def mu_init(phi):
 def p_init(u, phi, mu, eta, rho, m, h):#TODO
 	#LHS-grad p
 	grad = poisson_des(m, h, 1)
+	#print("in p_init, poission des:", grad)
 	#RHS
 	#terms involving u
 	#print(u.shape) 
 	convection_u1 = gradient_mat(m, h, u[0,:], 1, 'x').dot(u[0,:]) + \
 			gradient_mat(m, h, u[1,:], 1, 'y').dot(u[0,:])
+	#print("grad_mat:", gradient_mat(m, h, u[0,:], 1, 'x'))
+	#print("convection_u1:", convection_u1)
 	#print("convection_u1:", convection_u1.shape)#TODO
 	convection_u2 = gradient_mat(m, h, u[0,:], 1, 'x').dot(u[1,:]) + \
 			gradient_mat(m, h, u[1,:], 1, 'y').dot(u[1,:])
 	convection_u = np.vstack((convection_u1, convection_u2))
 	#print("convection_u:", convection_u.shape)#TODO
 	div_convection = div_val(m, h, convection_u, -rho)
-	#print("div_convection:", div_convection.shape)
+	print("div_convection:", div_convection)
 
 	poisson_u1 = poisson_des(m, h, 1).dot(u[0,:])
 	poisson_u2 = poisson_des(m, h, 1).dot(u[1,:])
@@ -156,7 +159,7 @@ def b_euler(delta_t, y, f, n):
 #poisson space descretization(dirichlet BC)
 def poisson_des(m, h, s):
 	laplacian = lil_matrix((m**2, m**2))
-	laplacian.setdiag(-4*np.ones(m**2))
+	laplacian.setdiag(-4*np.ones(m**2)/(h**2))
 	for i in range(m**2):
 		if i % m != 0:
 			laplacian[i,i-1] = 1/(h**2) * s
@@ -497,6 +500,7 @@ def time_stepping(m, h, delta_t, t_e, T, x, y, eta, rho, epsilon, M, C0):
 	u_n_minus = u_init_
 	u_n = u_init_
 	p = p_init_
+	print("p_init_;", p_init_)#TODO
 	phi_n_minus = phi_init_
 	phi_n = phi_init_
 
@@ -528,7 +532,7 @@ def time_stepping(m, h, delta_t, t_e, T, x, y, eta, rho, epsilon, M, C0):
 		u_n_minus = u_n
 		phi_n_minus = phi_n
 		u_n = u
-		print("u_n vetor:", u_n)
+		#print("u_n vetor:", u_n)
 		phi_n = phi
 
 	return u_n, p, phi_n		
