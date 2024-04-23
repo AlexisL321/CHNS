@@ -6,21 +6,21 @@ import matplotlib.pyplot as plt
 
 
 delta_t = 0.1 #time step
-eta = 0.1
-M = 0.1
+eta = 1 # 0.1
+M = 1
 gamma = 0.05
-epsilon = 0.04
-Re = 100
+epsilon = 1 # 0.04
+Re = 1
 rho = 1/Re
-m = 20 #grid point
+m = 5 #grid point
 x_0, x_m = 0, 1
 y_0, y_m = 0, 1
 h = (x_m - x_0) / (m-1)
 
-t_e = 10
-T = 5
+t_e = 5
+T = 10
 C0 = 0
-M = 1
+#M = 1
 
 x, delta_x = np.linspace(x_0, x_m, m, retstep = True)
 y, delta_y = np.linspace(y_0, y_m, m, retstep = True)
@@ -55,33 +55,44 @@ def phi_init(x, y):
 	phi =\
 	0.24*np.cos(2*np.pi*x)*np.cos(2*np.pi*y)+0.4*np.cos(np.pi*x)\
 	*np.cos(3*np.pi*y)
+	#phi = np.tanh(1/(np.sqrt(2)*epsilon)*(0.25 - np.sqrt((x-0.5)**2 + \
+	#(y-0.5)**2)))
+	#phi = np.cos(np.pi*x)*np.cos(np.pi*y) #test phi
+	#phi = 10*x*y #test phi
+	#phi = 0.25 + np.random.rand(len(x))
 	#return phi.flatten()
 	return phi
 
 #initial condition for u
 def u_init(x, y):
 	u1 = -np.sin(np.pi*x)**2*(np.sin(2*np.pi*y))
+	#u1 = np.zeros(len(x))
+	#u1 = 10*x*y
+
 	u2 = np.sin(np.pi*y)**2*(np.sin(2*np.pi*x))
+	#u2 = np.zeros(len(y))
+	#u2 = -10*x*y
+
 	u = np.vstack((u1, u2))
 	return u
 
 #function to calculate f_0
-def f_0(phi):
-	return 1./4 * (1-phi**2)**2
+def f_0(phi, epsilon):
+	return 1./(4*epsilon**2) * (1-phi**2)**2
 
 #function to calculate f_0^prime
-def f_0_prime(phi):
-	return (1-phi**2)*phi
+def f_0_prime(phi, epsilon):
+	return (1-phi**2)*phi/epsilon**2
 
 #function to calculate energy E
-def E(phi, f0, m, h):
+def E(phi, m, h):
 	#gradient of phi wrt x
 	gradx_phi = gradient_mat(m, h,np.ones((m**2, 1)), 0.5, 'x').dot(phi)
 	#gradient of phi wrt y
 	grady_phi = gradient_mat(m,h,np.ones((m**2, 1)), 0.5, 'y').dot(phi)
 	#square of norm of grad phi
 	norm_grad_phi = np.square(gradx_phi) + np.square(grady_phi)
-	f0 = f_0(phi)
+	f0 = f_0(phi, epsilon)
 	#integrand
 	integrand = f0 + norm_grad_phi
 	#perform integration
@@ -99,32 +110,26 @@ def E(phi, f0, m, h):
 	return integral
 	
 #function to calculate the initial value of mu
-def mu_init(phi):
+def mu_init(phi, epsilon):
 	#print(poisson_des(m, h, -1).shape)
 	#print(phi.shape)
-	poisson_term = poisson_des(m, h, -1).dot(phi)
-	nonlinear_term = (1-phi**2)*phi
+	poisson_term = poisson_des(m, h, -epsilon**2).dot(phi)
+	nonlinear_term = f_0_prime(phi, epsilon)
 	return poisson_term + nonlinear_term
 
 #function to calculate initial pressure term
 def p_init(u, phi, mu, eta, rho, m, h):#TODO
 	#LHS-grad p
 	grad = poisson_des(m, h, 1)
-	#print("in p_init, poission des:", grad)
 	#RHS
 	#terms involving u
-	#print(u.shape) 
 	convection_u1 = gradient_mat(m, h, u[0,:], 1, 'x').dot(u[0,:]) + \
 			gradient_mat(m, h, u[1,:], 1, 'y').dot(u[0,:])
-	#print("grad_mat:", gradient_mat(m, h, u[0,:], 1, 'x'))
-	#print("convection_u1:", convection_u1)
-	#print("convection_u1:", convection_u1.shape)#TODO
 	convection_u2 = gradient_mat(m, h, u[0,:], 1, 'x').dot(u[1,:]) + \
 			gradient_mat(m, h, u[1,:], 1, 'y').dot(u[1,:])
 	convection_u = np.vstack((convection_u1, convection_u2))
-	#print("convection_u:", convection_u.shape)#TODO
 	div_convection = div_val(m, h, convection_u, -rho)
-	print("div_convection:", div_convection)
+	#print("div_convection:", div_convection)
 
 	poisson_u1 = poisson_des(m, h, 1).dot(u[0,:])
 	poisson_u2 = poisson_des(m, h, 1).dot(u[1,:])
@@ -140,7 +145,7 @@ def p_init(u, phi, mu, eta, rho, m, h):#TODO
 	grad_mu_x = gradient_mat(m, h, grad_phi_x, 1, 'x').dot(mu)
 	grad_mu_y = gradient_mat(m, h, grad_phi_y, 1, 'y').dot(mu)
 	grad_mu_term = grad_mu_x + grad_mu_y
-	poisson_mu = poisson_des(m, h, -1).dot(phi)
+	poisson_mu = poisson_des(m, h, -1).dot(mu) * phi
 
 	RHS = poisson_mu + grad_mu_term + div_convection + div_poisson
 	#solve for p_initial
@@ -190,31 +195,35 @@ def gradient_mat(m, h, u, s, x_or_y):
 	if (x_or_y == 'x'):
 	#x-component of gradient (gradient along x)
 		grad = lil_matrix((m**2, m**2))
-		for i in range(m**2 - m):
-			#print((u[i]/(2*h) * s).shape)#TODO
-			grad[i, i+m] = u[i]/(2*h) * s
-			grad[i+m, i] = -u[i+m]/(2*h) * s
-		for i in range(0, m):
-			grad[i,i] = -u[i]/h * s
-			grad[i, i+m] = u[i]/h * s
-			grad[i+m**2-m, i+m**2-m] = u[i+m**2-m]/h * s
-			grad[i+m**2-2*m, i+m**2-m] = -u[i+m**2-2*m]/h * s
+		for i in range(m):
+			for j in range(m-2):
+				grad[i*m+j+1, i*m+j] = -s/(2*h) * u[i*m+j+1]
+				grad[i*m+j+1, i*m+j+2] = s/(2*h) * u[i*m+j+1]
+		for i in range(m):
+			grad[i*m, i*m] = -3*s/(2*h) * u[i*m]
+			grad[i*m, i*m+1] = 4*s/(2*h) * u[i*m]
+			grad[i*m, i*m+2] = -s/(2*h) * u[i*m]
+			grad[(i+1)*m-1, (i+1)*m-1] = 3*s/(2*h) * u[(i+1)*m-1]
+			grad[(i+1)*m-1, (i+1)*m-2] = -4*s/(2*h) * u[(i+1)*m-1]
+			grad[(i+1)*m-1, (i+1)*m-3] = s/(2*h) * u[(i+1)*m-1]
 		return grad.tocsr()
 	else:
 	#y-component of gradient (gradient along y)
 		grad = lil_matrix((m**2, m**2))
-		for i in range(m**2-1):
-			grad[i, i+1] = u[i]/(2*h) * s
-			grad[i+1, i] = -u[i+1]/(2*h) * s
+		#first and last row of grid points
 		for i in range(m):
-			grad[i*m, i*m] = -u[i*m]/h * s
-			grad[i*m, i*m+1] = u[i*m]/h * s
-			grad[(i+1)*m-1, (i+1)*m-1] = u[(i+1)*m-1]/h * s
-			grad[(i+1)*m-1, (i+1)*m-2] = -u[(i+1)*m-1]/h * s
-			if i != 0:
-				grad[i*m, i*m-1] = 0
-			if i != (m-1):
-				grad[(i+1)*m-1, (i+1)*m] = 0
+			#first row
+			grad[i, i] = -3*s/(2*h) * u[i]
+			grad[i, m+i] = 4*s/(2*h) * u[i]
+			grad[i, 2*m+i] = -s/(2*h) * u[i]
+			#last row
+			grad[m*m-1-i, m*m-1-i] = 3*s/(2*h) * u[m*m-1-i]
+			grad[m*m-1-i, m*m-1-i-m] = -4*s/(2*h) * u[m*m-1-i]
+			grad[m*m-1-i, m*m-1-i-2*m] = s/(2*h) * u[m*m-1-i]
+		#middle rows of grid points
+		for i in range((m-2)*m):
+			grad[i+m, i] = -s/(2*h) * u[i+m]
+			grad[i+m, i+2*m] = s/(2*h) * u[i+m]
 		return grad.tocsr()
 
 #function to generate scalar multiply matrix
@@ -285,7 +294,8 @@ def solve_u_hat(u_n, u_n_minus, p, phi, delta_t, rho, eta, m, dim):
 					LHS[i*m+j, k] = 0
 				LHS[i*m+j, i*m+j] = 1
 			if j == m-1:
-				RHS[i*m+j] = i*h*(1-i*h) if dim == 1 else 0
+				#RHS[i*m+j] = i*h*(1-i*h) if dim == 1 else 0
+				RHS[i*m+j] = 0
 				for k in range(m**2):
 					LHS[i*m+j, k] = 0
 				LHS[i*m+j, i*m+j] = 1
@@ -326,7 +336,7 @@ def helper_phi_mid(m, h, delta_t, phi_n):
 	#print("idnetity:", identity.shape)
 	LHS = biharmonic_ + identity
 	#RHS
-	f_prime = poisson_des(m, h, delta_t).dot(f_0_prime(phi_n))
+	f_prime = poisson_des(m, h, delta_t).dot(f_0_prime(phi_n, epsilon))
 	RHS = f_prime + phi_n
 	#solve for phi_middle
 	phi_mid = spsolve(LHS, RHS)
@@ -334,15 +344,15 @@ def helper_phi_mid(m, h, delta_t, phi_n):
 
 #helper function to calculate r
 def helper_r(m, h, phi_n, C0):
-	f_0_n = f_0(phi_n)
-	r = np.sqrt(E(phi_n, f_0_n, m, h) + C0)
+	#f_0_n = f_0(phi_n, epsilon)
+	r = np.sqrt(E(phi_n, m, h) + C0)
 	return r
 
 #helper function to solve b_n
 def helper_b(m, h, phi_mid, C0):
-	numerator = f_0_prime(phi_mid)
-	f_0_mid = f_0(phi_mid)
-	denominator = np.sqrt(E(phi_mid, f_0_mid, m, h)+C0)
+	numerator = f_0_prime(phi_mid, epsilon)
+	#f_0_mid = f_0(phi_mid, epsilon)
+	denominator = np.sqrt(E(phi_mid, m, h)+C0)
 	return numerator / denominator
 
 #helper: solve Ax=(b)
@@ -491,8 +501,10 @@ def time_stepping(m, h, delta_t, t_e, T, x, y, eta, rho, epsilon, M, C0):
 	#calculate the initial values
 	u_init_ = u_init(x, y)
 	phi_init_ = phi_init(x, y)
-	mu_init_ = mu_init(phi_init_)
+	mu_init_ = mu_init(phi_init_, epsilon)
 	p_init_ = p_init(u_init_, phi_init_, mu_init_, eta, rho, m, h)
+	# changing the initial pressure TODO
+	#p_init_ = np.zeros(m**2)
 
 	#start time stepping
 	#first do Euler time stepping 10 times
@@ -501,8 +513,12 @@ def time_stepping(m, h, delta_t, t_e, T, x, y, eta, rho, epsilon, M, C0):
 	u_n = u_init_
 	p = p_init_
 	print("p_init_;", p_init_)#TODO
+	print("u_init_", u_init_)
+	
 	phi_n_minus = phi_init_
 	phi_n = phi_init_
+	print("phi_init", phi_init_)
+
 
 	for i in range(t_e):
 		if i == 0:
@@ -519,6 +535,22 @@ def time_stepping(m, h, delta_t, t_e, T, x, y, eta, rho, epsilon, M, C0):
 		phi_n_minus = phi_n
 		u_n = u
 		phi_n = phi
+
+		'''
+		u_norm = np.sqrt(u[0,:]**2, u[1,:]**2)
+		#X, Y = np.meshgrid(x, y, indexing = 'ij')
+		u_norm = np.reshape(u_norm, (m, m))
+		plt.contourf(X, Y, u_norm)
+		plt.axis('scaled')
+		plt.colorbar()
+		plt.show()
+		'''
+
+		phi_plot = np.reshape(phi, (m,m))
+		plt.contourf(X, Y, phi_plot)
+		plt.axis('scaled')
+		plt.colorbar()
+		plt.show()
 		print("u_n vector:", u_n)
 	
 	for i in range(T - 1):
@@ -535,18 +567,42 @@ def time_stepping(m, h, delta_t, t_e, T, x, y, eta, rho, epsilon, M, C0):
 		#print("u_n vetor:", u_n)
 		phi_n = phi
 
+		'''
+		u_norm = np.sqrt(u[0,:]**2, u[1,:]**2)
+		#X, Y = np.meshgrid(x, y, indexing = 'ij')
+		u_norm = np.reshape(u_norm, (m, m))
+		phi_plot = np.reshape(phi, (m, m))
+		plt.contourf(X, Y, u_norm)
+		plt.axis('scaled')
+		plt.colorbar()
+		plt.show()
+		'''
+
+		phi_plot = np.reshape(phi, (m,m))
+		plt.contourf(X, Y, phi_plot)
+		plt.axis('scaled')
+		plt.colorbar()
+		plt.show()
+
 	return u_n, p, phi_n		
 
 def plotting(m, h, delta_t, t_e, T, x, y, eta, rho, epsilon, M, C0):
 	u, p, phi = time_stepping(m, h, delta_t, t_e, T, x, y, eta, \
 						rho, epsilon, M, C0)
+	'''
 	u_norm = np.sqrt(u[0,:]**2, u[1,:]**2)
 	#X, Y = np.meshgrid(x, y, indexing = 'ij')
 	u_norm = np.reshape(u_norm, (m, m))
-	print("len(X)", len(X))
+	phi_plot = np.reshape(phi, (m, m))
 	plt.contourf(X, Y, u_norm)
 	plt.axis('scaled')
 	plt.colorbar()
 	plt.show()
+
+	plt.contourf(X, Y, phi_plot)
+	plt.axis('scaled')
+	plt.colorbar()
+	plt.show()
+	'''
 
 plotting(m, h, delta_t, t_e, T, x_mod, y_mod, eta, rho, epsilon, M, C0)
