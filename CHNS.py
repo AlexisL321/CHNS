@@ -12,7 +12,7 @@ gamma = 0.05
 epsilon = 1 # 0.04
 Re = 1
 rho = 1/Re
-m = 5 #grid point
+m = 7 #grid point
 x_0, x_m = 0, 1
 y_0, y_m = 0, 1
 h = (x_m - x_0) / (m-1)
@@ -82,7 +82,7 @@ def f_0(phi, epsilon):
 
 #function to calculate f_0^prime
 def f_0_prime(phi, epsilon):
-	return (1-phi**2)*phi/epsilon**2
+	return -(1-phi**2)*phi/epsilon**2
 
 #function to calculate energy E
 def E(phi, m, h):
