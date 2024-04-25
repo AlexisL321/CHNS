@@ -10,9 +10,9 @@ eta = 1 # 0.1
 M = 1
 gamma = 0.05
 epsilon = 1 # 0.04
-Re = 1
+Re = 100 #1
 rho = 1/Re
-m = 7 #grid point
+m = 21 #grid point
 x_0, x_m = 0, 1
 y_0, y_m = 0, 1
 h = (x_m - x_0) / (m-1)
@@ -544,13 +544,13 @@ def time_stepping(m, h, delta_t, t_e, T, x, y, eta, rho, epsilon, M, C0):
 		plt.axis('scaled')
 		plt.colorbar()
 		plt.show()
-		'''
 
 		phi_plot = np.reshape(phi, (m,m))
 		plt.contourf(X, Y, phi_plot)
 		plt.axis('scaled')
 		plt.colorbar()
 		plt.show()
+		'''
 		print("u_n vector:", u_n)
 	
 	for i in range(T - 1):
@@ -576,20 +576,19 @@ def time_stepping(m, h, delta_t, t_e, T, x, y, eta, rho, epsilon, M, C0):
 		plt.axis('scaled')
 		plt.colorbar()
 		plt.show()
-		'''
 
 		phi_plot = np.reshape(phi, (m,m))
 		plt.contourf(X, Y, phi_plot)
 		plt.axis('scaled')
 		plt.colorbar()
 		plt.show()
+		'''
 
 	return u_n, p, phi_n		
 
 def plotting(m, h, delta_t, t_e, T, x, y, eta, rho, epsilon, M, C0):
 	u, p, phi = time_stepping(m, h, delta_t, t_e, T, x, y, eta, \
 						rho, epsilon, M, C0)
-	'''
 	u_norm = np.sqrt(u[0,:]**2, u[1,:]**2)
 	#X, Y = np.meshgrid(x, y, indexing = 'ij')
 	u_norm = np.reshape(u_norm, (m, m))
@@ -603,6 +602,5 @@ def plotting(m, h, delta_t, t_e, T, x, y, eta, rho, epsilon, M, C0):
 	plt.axis('scaled')
 	plt.colorbar()
 	plt.show()
-	'''
 
-plotting(m, h, delta_t, t_e, T, x_mod, y_mod, eta, rho, epsilon, M, C0)
+plotting(m, delta_x, delta_t, t_e, T, x_mod, y_mod, eta, rho, epsilon, M, C0)
