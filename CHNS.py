@@ -10,11 +10,11 @@ eta = 1 # 0.1
 M = 1
 gamma = 0.05
 epsilon = 1 # 0.04
-Re = 100 #1
+Re = 1
 rho = 1/Re
-m = 21 #grid point
-x_0, x_m = 0, 1
-y_0, y_m = 0, 1
+m = 6 #grid point
+x_0, x_m = 0, 2
+y_0, y_m = 0, 2
 h = (x_m - x_0) / (m-1)
 
 t_e = 5
@@ -52,9 +52,10 @@ def u_init(x, y):
 #initial condition for phi
 def phi_init(x, y):
 #input x and y should be meshgrid X and Y
-	phi =\
-	0.24*np.cos(2*np.pi*x)*np.cos(2*np.pi*y)+0.4*np.cos(np.pi*x)\
-	*np.cos(3*np.pi*y)
+	#phi =\
+	#0.24*np.cos(np.pi*x)*np.cos(2*np.pi*y)+0.4*np.cos(np.pi*x)\
+	#*np.cos(3*np.pi*y)
+	phi = np.cos(2*np.pi*x)*np.sin(2*np.pi*y)
 	#phi = np.tanh(1/(np.sqrt(2)*epsilon)*(0.25 - np.sqrt((x-0.5)**2 + \
 	#(y-0.5)**2)))
 	#phi = np.cos(np.pi*x)*np.cos(np.pi*y) #test phi
@@ -65,12 +66,12 @@ def phi_init(x, y):
 
 #initial condition for u
 def u_init(x, y):
-	u1 = -np.sin(np.pi*x)**2*(np.sin(2*np.pi*y))
-	#u1 = np.zeros(len(x))
+	#u1 = -np.sin(np.pi*x)**2*(np.sin(2*np.pi*y))
+	u1 = np.zeros(len(x))
 	#u1 = 10*x*y
 
-	u2 = np.sin(np.pi*y)**2*(np.sin(2*np.pi*x))
-	#u2 = np.zeros(len(y))
+	#u2 = np.sin(np.pi*y)**2*(np.sin(2*np.pi*x))
+	u2 = np.zeros(len(y))
 	#u2 = -10*x*y
 
 	u = np.vstack((u1, u2))
@@ -87,11 +88,11 @@ def f_0_prime(phi, epsilon):
 #function to calculate energy E
 def E(phi, m, h):
 	#gradient of phi wrt x
-	gradx_phi = gradient_mat(m, h,np.ones((m**2, 1)), 0.5, 'x').dot(phi)
+	gradx_phi = gradient_mat(m, h,np.ones((m**2, 1)), 1, 'x').dot(phi)
 	#gradient of phi wrt y
-	grady_phi = gradient_mat(m,h,np.ones((m**2, 1)), 0.5, 'y').dot(phi)
+	grady_phi = gradient_mat(m,h,np.ones((m**2, 1)), 1, 'y').dot(phi)
 	#square of norm of grad phi
-	norm_grad_phi = np.square(gradx_phi) + np.square(grady_phi)
+	norm_grad_phi = (np.square(gradx_phi) + np.square(grady_phi))*1/2
 	f0 = f_0(phi, epsilon)
 	#integrand
 	integrand = f0 + norm_grad_phi
@@ -161,7 +162,7 @@ def b_euler(delta_t, y, f, n):
 	return y_new
 
 	
-#poisson space descretization(dirichlet BC)
+#poisson space descretization(periodic BC)
 def poisson_des(m, h, s):
 	laplacian = lil_matrix((m**2, m**2))
 	laplacian.setdiag(-4*np.ones(m**2)/(h**2))
@@ -173,6 +174,15 @@ def poisson_des(m, h, s):
 	for i in range(m**2 - m):
 		laplacian[i, i+m] = 1/(h**2) * s
 		laplacian[i+m, i] = 1/(h**2) * s
+
+	for i in range(m):
+		laplacian[i, m*(m-1)+i] = s/(h**2) 
+		laplacian[m*(m-1)+i, i] = s/(h**2)
+
+	# Connect the first and last columns
+	for i in range(m):
+		laplacian[i*m, (i+1)*m-1] = s/(h**2)
+		laplacian[(i+1)*m-1, i*m] = s/(h**2)
 	return laplacian.tocsr()
 
 
@@ -285,6 +295,7 @@ def solve_u_hat(u_n, u_n_minus, p, phi, delta_t, rho, eta, m, dim):
 
 	RHS = linear_term + convection_term + laplacian_term + gradient_term
 
+	'''
 	#now deal with Dirichlet BC
 	for i in range(m):
 		for j in range(m):
@@ -300,6 +311,7 @@ def solve_u_hat(u_n, u_n_minus, p, phi, delta_t, rho, eta, m, dim):
 					LHS[i*m+j, k] = 0
 				LHS[i*m+j, i*m+j] = 1
 	
+	'''
 	#finally, solve for u
 	u_hat = spsolve(LHS, RHS)
 	return u_hat
@@ -536,21 +548,22 @@ def time_stepping(m, h, delta_t, t_e, T, x, y, eta, rho, epsilon, M, C0):
 		u_n = u
 		phi_n = phi
 
-		'''
 		u_norm = np.sqrt(u[0,:]**2, u[1,:]**2)
+
 		#X, Y = np.meshgrid(x, y, indexing = 'ij')
 		u_norm = np.reshape(u_norm, (m, m))
 		plt.contourf(X, Y, u_norm)
 		plt.axis('scaled')
+		plt.title(f"u {i}")
 		plt.colorbar()
 		plt.show()
 
 		phi_plot = np.reshape(phi, (m,m))
 		plt.contourf(X, Y, phi_plot)
 		plt.axis('scaled')
+		plt.title(f"phi {i}")
 		plt.colorbar()
 		plt.show()
-		'''
 		print("u_n vector:", u_n)
 	
 	for i in range(T - 1):
@@ -567,22 +580,22 @@ def time_stepping(m, h, delta_t, t_e, T, x, y, eta, rho, epsilon, M, C0):
 		#print("u_n vetor:", u_n)
 		phi_n = phi
 
-		'''
 		u_norm = np.sqrt(u[0,:]**2, u[1,:]**2)
 		#X, Y = np.meshgrid(x, y, indexing = 'ij')
 		u_norm = np.reshape(u_norm, (m, m))
 		phi_plot = np.reshape(phi, (m, m))
 		plt.contourf(X, Y, u_norm)
 		plt.axis('scaled')
+		plt.title(f"u {i}")
 		plt.colorbar()
 		plt.show()
 
 		phi_plot = np.reshape(phi, (m,m))
 		plt.contourf(X, Y, phi_plot)
 		plt.axis('scaled')
+		plt.title(f"phi {i}")
 		plt.colorbar()
 		plt.show()
-		'''
 
 	return u_n, p, phi_n		
 
@@ -595,11 +608,13 @@ def plotting(m, h, delta_t, t_e, T, x, y, eta, rho, epsilon, M, C0):
 	phi_plot = np.reshape(phi, (m, m))
 	plt.contourf(X, Y, u_norm)
 	plt.axis('scaled')
+	plt.title('u_norm final')
 	plt.colorbar()
 	plt.show()
 
 	plt.contourf(X, Y, phi_plot)
 	plt.axis('scaled')
+	plt.title('phi_final')
 	plt.colorbar()
 	plt.show()
 
