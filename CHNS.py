@@ -276,18 +276,24 @@ def biharmonic(m, h, s):
     #plt.show()
     return bh.tocsr()
 
+#function to calculate extrapolation
+def extrap(a_n, a_n1):
+	return 2*a_n - a_n1
+
 #first step: solve for u_hat with NS equation (helper function to
 #solve_full_u_hat)
 #dim specifies to solve for u1 or u2
-def solve_u_hat(u_n, u_n_minus, p, phi, delta_t, rho, eta, m, dim):
+def solve_u_hat(u_n, u_n_minus, p_n, p_n_minus, phi_n, phi_n_minus,  delta_t, \
+rho, eta, m, dim):
 	#building LHS
 	constant_coef = scalar_mul(3, m)
 	#convection term on the LHS
 	print("solve_u_hat:u_n shape:", u_n.shape) #TODO
-	convection_LHS = gradient_mat(m, h, u_n[0,:], delta_t, 'x') + \
-					gradient_mat(m, h, u_n[1,:], delta_t, 'y')
+	u_e = extrap(u_n, u_n_minus)
+	convection_LHS = gradient_mat(m, h, u_e[0,:], 2*delta_t, 'x') + \
+					gradient_mat(m, h, u_e[1,:], 2*delta_t, 'y')
 	#Laplacian term on the LHS
-	s = -delta_t / rho
+	s = -eta*2*delta_t / rho
 	laplacian = poisson_des(m, h, s)
 	
 	LHS = constant_coef + convection_LHS + laplacian
@@ -295,48 +301,35 @@ def solve_u_hat(u_n, u_n_minus, p, phi, delta_t, rho, eta, m, dim):
 	#building RHS
 	ind = 0 if dim == 1 else 1 #index for column for u_n and u_n_minus
 	linear_term = scalar_mul(4, m).dot(u_n[ind,:]) - u_n_minus[ind,:]
-	convection_term = gradient_mat(m, h, u_n[0,:], -delta_t, 'x').dot(\
-				u_n_minus[ind,:])\
-				+ gradient_mat(m, h, u_n[1,:], -delta_t, 'y').dot(\
-				u_n_minus[ind,:])
-	convection_term *= delta_t
+	#convection_term = gradient_mat(m, h, u_n[0,:], -delta_t, 'x').dot(\
+	#			u_n_minus[ind,:])\
+	#			+ gradient_mat(m, h, u_n[1,:], -delta_t, 'y').dot(\
+	#			u_n_minus[ind,:])
+	#convection_term *= delta_t
 	#Laplacian term
-	s2 = delta_t*eta/rho #scalar for poisson for u_n_minus
-	laplacian_term = poisson_des(m, h, s2).dot(u_n_minus[ind,:])
+	#s2 = delta_t*eta/rho #scalar for poisson for u_n_minus
+	#laplacian_term = poisson_des(m, h, s2).dot(u_n_minus[ind,:])
 	#gradient term for mu and p
-	mu = helper_mu(m, h, phi, epsilon, C0)
+	phi_e = extrap(phi_n, phi_n_minus)
+	mu = helper_mu(m, h, phi_e, epsilon, C0)
 	x_or_y = 'x' if dim == 1 else 'y'
 	p_s = -2*delta_t/rho
+	p_e = extrap(p_n, p_n_minus)
 	gradient_term = gradient_mat(m, h, np.ones(m**2), p_s, x_or_y)\
-			.dot(p) + gradient_mat(m, h, phi, p_s, x_or_y).dot(mu)
+			.dot(p_e) + gradient_mat(m, h, phi_e, p_s, x_or_y).dot(mu)
 
-	RHS = linear_term + convection_term + laplacian_term + gradient_term
-
-	'''
-	#now deal with Dirichlet BC
-	for i in range(m):
-		for j in range(m):
-			if i==0 or i == m-1 or j == 0:
-				RHS[i*m+j] = 0
-				for k in range(m**2):
-					LHS[i*m+j, k] = 0
-				LHS[i*m+j, i*m+j] = 1
-			if j == m-1:
-				#RHS[i*m+j] = i*h*(1-i*h) if dim == 1 else 0
-				RHS[i*m+j] = 0
-				for k in range(m**2):
-					LHS[i*m+j, k] = 0
-				LHS[i*m+j, i*m+j] = 1
-	
-	'''
+	RHS = linear_term + gradient_term
 	#finally, solve for u
 	u_hat = spsolve(LHS, RHS)
 	return u_hat
 
 #function to get full u_hat (with two components)
-def solve_full_u_hat(u_n, u_n_minus, p, phi, delta_t, rho, eta, m):
-	u1 = solve_u_hat(u_n, u_n_minus, p, phi, delta_t, rho, eta, m, 1)
-	u2 = solve_u_hat(u_n, u_n_minus, p, phi, delta_t, rho, eta, m, 2)
+def solve_full_u_hat(u_n, u_n_minus, p_n, p_n_minus, phi_n, phi_n_minus,\
+delta_t, rho, eta, m):
+	u1 = solve_u_hat(u_n, u_n_minus, p_n, p_n_minus, phi_n, phi_n_minus,\
+	delta_t, rho, eta, m, 1)
+	u2 = solve_u_hat(u_n, u_n_minus, p_n, p_n_minus, phi_n, phi_n_minus,\
+	delta_t, rho, eta, m, 2)
 	u_hat = np.vstack((u1, u2))
 	return u_hat
 
@@ -344,7 +337,7 @@ def solve_full_u_hat(u_n, u_n_minus, p, phi, delta_t, rho, eta, m):
 #u is the u_hat^(n+1), p_n is the p in previous time step
 def solve_p(m, h, u, delta_t, p_n):
 	#RHS (divergence of u_n+1)
-	RHS = div_val(m, h, u, -1)
+	RHS = div_val(m, h, u, 1)
 	#LHS(laplacian of p_n+1 - p_n)
 	poisson_p = poisson_des(m, h, delta_t/2)
 	#solve for p_diff
@@ -352,6 +345,7 @@ def solve_p(m, h, u, delta_t, p_n):
 	p = p_diff + p_n
 	return p
 
+#may not need to use phi_mid
 #helper function to calculate phi_n+1/2
 #this is using CH to approximate phi_mid, for more accuracy
 #maybe need to use CHNS to approximate phi_mid
@@ -373,89 +367,85 @@ def helper_phi_mid(m, h, delta_t, phi_n):
 
 #helper function to calculate r
 def helper_r(m, h, phi_n, C0):
-	#f_0_n = f_0(phi_n, epsilon)
 	r = np.sqrt(E(phi_n, m, h) + C0)
 	return r
 
-#helper function to solve b_n
-def helper_b(m, h, phi_mid, C0):
-	numerator = f_0_prime(phi_mid, epsilon)
-	#f_0_mid = f_0(phi_mid, epsilon)
-	denominator = np.sqrt(E(phi_mid, m, h)+C0)
+#helper function to solve b_e
+#return b_e
+def helper_b(m, h, phi_e, C0):
+	numerator = f_0_prime(phi_e, epsilon)
+	denominator = np.sqrt(E(phi_e, m, h)+C0)
 	return numerator / denominator
 
 #helper: solve Ax=(b)
-def A_inverse_b(m, h, delta_t, M, epsilon, poisson_b):
+def A_inverse_b(m, h, delta_t, M, epsilon, poisson_b, u):
 	#LHS (A)
 	scalar_ = scalar_mul(3/(2*delta_t), m)
 	biharmonic_ = biharmonic(m, h, M*epsilon**2)
-	A = scalar_ + biharmonic_
+	#divergence u
+	div_u = div_val(m, h, u, 1)
+	A = scalar_ + biharmonic_ + div_u
 	#solve for A_inverse_poisson_b
 	result = spsolve(A, poisson_b)
 	return result
 
 #helper: calculate gamma = -<A^-1 Laplacian(b), b>
-def gamma(m, h, delta_t, M, epsilon, b):
-	poisson_b = poisson_des(m, h, 1).dot(b)
-	A_term = A_inverse_b(m, h, delta_t, M, epsilon, poisson_b)
+def gamma(m, h, delta_t, M, epsilon, b, u):
+	poisson_b = poisson_des_n(m, h, 1).dot(b) #b use neumann BC
+	A_term = A_inverse_b(m, h, delta_t, M, epsilon, poisson_b, u)
 	return -M/2 * A_term * b
 
 #helper: compute <b, phi_n+1>, it will also return A^-1*g
-def b_phi_inner_product(m, h, delta_t, M, epsilon, u_hat, phi_n,\
-						phi_n_minus, u_n_minus, b, C0):
+def b_phi_inner_product(m, h, delta_t, M, epsilon, u, phi_n,\
+						phi_n_minus, b, C0):
 	#RHS (g_term)
-	div_u_hat = div_val(m, h, u_hat, -1/2)
-	scalar_phi = (2/delta_t + div_u_hat) * phi_n
-	# divergence phi term
-	#div_phi = div_val(m, h, phi_n, -1)
-	#u_div_phi = (u_hat + u_n_minus)/2 * div_phi
-	# phi_n-1 term
-	scalar_phi_minus = -phi_n_minus/(2*delta_t)
+	# scalar phi term
+	scalar_phi = -phi_n_minus/(2*delta_t) + 4*phi_n/(2*delta_t)
 	# laplacian b term
-	r = helper_r(m, h, phi_n, C0)
+	r_n = helper_r(m, h, phi_n, C0)
 	r_minus = helper_r(m, h, phi_n_minus, C0)
-	laplacian_b_coef = 4*M/3*r - 2*M/3*(b*phi_n) + M/6*(b*phi_n_minus)\
-		- M/3*r_minus
-	laplacian_b = poisson_des(m, h, 1).dot(b) * laplacian_b_coef
+	laplacian_b_coef = M*(4/3*r_n + 1/6*(b*(-4*phi_n+phi_n_minus)) \
+		- 1/3*r_minus)
+	laplacian_b = poisson_des_n(m, h, laplacian_b_coef).dot(b)
 
-	g = scalar_phi + scalar_phi_minus + laplacian_b
-	A_inverse_g = A_inverse_b(m, h, delta_t, M, epsilon, g)
+	g = scalar_phi + laplacian_b
+	A_inverse_g = A_inverse_b(m, h, delta_t, M, epsilon, g, u)
 
 	RHS = A_inverse_g * b
 	#LHS
-	LHS = 1 + gamma(m, h, delta_t, M, epsilon, b)
+	LHS = 1 + gamma(m, h, delta_t, M, epsilon, b, u)
 	
 	result = RHS/LHS
 	return result, A_inverse_g
 
 #helper: calculate mu for a certain time step
-def helper_mu(m, h, phi_n, epsilon, C0):
-	poisson_phi = poisson_des(m, h, -epsilon**2).dot(phi_n)
-	r = helper_r(m, h, phi_n, C0)
-	f_term = r * helper_b(m, h, phi_n, C0)
+def helper_mu(m, h, phi, epsilon, C0):
+	poisson_phi = poisson_des_n(m, h, -epsilon**2).dot(phi)
+	r = helper_r(m, h, phi, C0)
+	f_term = r * helper_b(m, h, phi, C0)
 	return poisson_phi + f_term
 	
-#function to solve phi after solving u_hat_n+1
+#function to solve phi after solving u_n+1
 #This function is using u_hat as u_n+1 and not the real u_n+1 when
 #solving for phi. TODO
-def solve_phi(m, h, delta_t, M, epsilon, u_hat, u_n_minus, phi_n,\
+def solve_phi(m, h, delta_t, M, epsilon, u, phi_n,\
 			phi_n_minus, b, C0):
 	#RHS
 	b_phi_ip, RHS_2 = b_phi_inner_product(m, h, delta_t, M, \
-		epsilon, u_hat, phi_n, phi_n_minus, u_n_minus, b, C0)
+		epsilon, u, phi_n, phi_n_minus, b, C0)
 
 	first_term_coef = M/2 * b_phi_ip
-	poisson_b = poisson_des(m, h, 1).dot(b) * first_term_coef
-	RHS_1 = A_inverse_b(m, h, delta_t, M, epsilon, poisson_b)
+	poisson_b = poisson_des_n(m, h, first_term_coef).dot(b)
+	RHS_1 = A_inverse_b(m, h, delta_t, M, epsilon, poisson_b, u)
 	RHS = RHS_1 + RHS_2
 	return RHS #phi_n+1 equals RHS
 
 #this function calculate the real u_n+1
 def solve_real_u(m, h, u_hat, p_n, p_n_plus, delta_t):
 	p_diff = p_n_plus - p_n
-	grad_p_diff_x = gradient_mat(m, h, np.ones((m**2,1)), delta_t/2, 'x')\
+	grad_p_diff_x = gradient_mat(m, h, np.ones(m**2), delta_t/2, 'x')\
 				.dot(p_diff)
-	grad_p_diff_y = gradient_mat(m, h, np.ones((m**2,1)), delta_t/2, 'y')\
+	grad_p_diff_y = gradient_mat(m, h, np.ones(m**2), delta_t/2, 'y')\
 				.dot(p_diff)
 	u_real_x = u_hat[0,:] + grad_p_diff_x
 	u_real_y = u_hat[1,:] + grad_p_diff_y
