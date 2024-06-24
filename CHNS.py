@@ -109,10 +109,12 @@ def E(phi, m, h):
 	return integral
 	
 #function to calculate the initial value of mu
-def mu_init(phi, epsilon):
+def mu_init(m, phi, epsilon):
 	#print(poisson_des(m, h, -1).shape)
 	#print(phi.shape)
+	#print(poisson_des(m, h, -epsilon**2).shape, phi.shape)
 	poisson_term = poisson_des(m, h, -epsilon**2).dot(phi)
+	
 	nonlinear_term = f_0_prime(phi, epsilon)
 	return poisson_term + nonlinear_term
 
@@ -246,35 +248,63 @@ def div_val(m, h, u, s):
 	return div
 
 def biharmonic(m, h, s):
-    bh = lil_matrix((m**2, m**2))
-    bh.setdiag(20*np.ones(m**2)/(h**4))
-    for i in range(m**2):
-        if i % m != 0:
-            bh[i, i-1] = -8/(h**4) * s
-            if i % m != 1: #not the second column
-                bh[i, i-2] = 1/(h**4) * s #u_{i,j-2}
-        if (i+1) % m != 0:
-            bh[i, i+1] = -8/(h**4) * s
-            if (i+2) % m != 0: #not the second last column
-                bh[i, i+2] = 1/(h**4) * s #u_{i,j+2}
-    for i in range(m**2 - m):
-        bh[i, i+m] = -8/(h**4) * s #u_{i+1,j}
-        bh[i+m, i] = -8/(h**4) * s #u_{i-1,j}
-    for i in range(m**2 -m -1):
-        if (i+1) % m != 0: #not the last column
-            bh[i, i+m+1] = 2/(h**4) * s #u_{i+1,j+1}
-        #if (i+m+1) % m != 0: #not the first column
-            bh[i+m+1, i] = 2/(h**4) * s #u_{i-1,j-1}
-    for i in range(m**2-m+1):
-        if i % m != 0:
-            bh[i+m-1, i] = 2/(h**4) * s #u_{i-1,j+1}
-            bh[i, i+m-1] = 2/(h**4) * s #u_{i+1,j-1}
-    for i in range(m**2-2*m):
-        bh[i, i+2*m] = 1/(h**4) * s #u_{i+2,j}
-        bh[i+2*m, i] = 1/(h**4) * s #u_{i-2,j}
+	bh = lil_matrix((m**2, m**2))
+	bh.setdiag(20*np.ones(m**2)/(h**4))
+	for i in range(m**2):
+		if i % m != 0:
+			bh[i, i-1] = -8/(h**4) * s
+			if i % m != 1: #not the second column
+				bh[i, i-2] = 1/(h**4) * s #u_{i,j-2}
+		if (i+1) % m != 0:
+			bh[i, i+1] = -8/(h**4) * s
+			if (i+2) % m != 0: #not the second last column
+				bh[i, i+2] = 1/(h**4) * s #u_{i,j+2}
+	for i in range(m**2 - m):
+		bh[i, i+m] = -8/(h**4) * s #u_{i+1,j}
+		bh[i+m, i] = -8/(h**4) * s #u_{i-1,j}
+	for i in range(m**2 -m -1):
+		if (i+1) % m != 0: #not the last column
+			bh[i, i+m+1] = 2/(h**4) * s #u_{i+1,j+1}
+		#if (i+m+1) % m != 0: #not the first column
+			bh[i+m+1, i] = 2/(h**4) * s #u_{i-1,j-1}
+	for i in range(m**2-m+1):
+		if i % m != 0:
+			bh[i+m-1, i] = 2/(h**4) * s #u_{i-1,j+1}
+			bh[i, i+m-1] = 2/(h**4) * s #u_{i+1,j-1}
+	for i in range(m**2-2*m):
+		bh[i, i+2*m] = 1/(h**4) * s #u_{i+2,j}
+		bh[i+2*m, i] = 1/(h**4) * s #u_{i-2,j}
+	#Neumann BC
+	for i in range(m):
+		bh[i,i] -= 8/(h**4) * s #-8u_{i-1,j}
+		bh[-(i+1), -(i+1)] -= 8/(h**4) * s #-8u_{i+1, j}
+		bh[i,i] += 1/(h**4) * s #u_{i-2,j} for first row
+		bh[-(i+1), -(i+1)] += 1/(h**4) * s #u_{i+2,j} for last row
+		bh[m+i,i] += 1/(h**4) * s #u_{i-2,j} for the second row
+		bh[-(i+1+m),-(i+1)] += 1/(h**4) * s #u_{i+2,j} for the 2nd last row
+		if i != m-1:
+			bh[-(i+1),-(i+2)] += 2/(h**4) * s #2u_{i+1,j-1}
+			bh[i,i+1] += 2/(h**4) * s #2u_{i-1,j+1}
+		else:
+			bh[-(i+1),-(i+1)] += 2/(h**4) * s #2u_{i+1,j-1}
+			bh[i,i] += 2/(h**4) * s #2u_{i-1.j+1}
+		if i != 0:
+			bh[-(i+1),-i] += 2/(h**4) * s #2u_{i+1,j+1} for last row
+			bh[i,i-1] += 2/(h**4) * s #2u_{i-1,j-1}
+		else:
+			bh[-(i+1),-(i+1)] += 2/(h**4) * s #2u_{i+1,j+1} for last entry
+			bh[i,i] += 2/(h**4) * s #2u_{i-1,j-1} for 1st entry
+	#columns
+	for i in range(m):
+		bh[(i+1)*m-1,(i+1)*m-1] -= 8/(h**4) * s #-8u_{i,j+1} for last col
+		bh[i*m,i*m] -= 8/(h**4) * s #-8u_{i,j-1} for first col
+		bh[(i+1)*m-1,(i+1)*m-1] += 1/(h**4) * s #u_{i,j+2} for last col
+		bh[i*m,i*m] += 1/(h**4) * s #u_{i,j-2} for first col
+		bh[(i+1)*m-2,(i+1)*m-1] += 1/(h**4) * s #u_{i,j+2} for 2nd last col
+		bh[i*m+1,i*m] += 1/(h**4) * s #u_{i,j-2} for 2nd first col
     #plt.spy(bh)
     #plt.show()
-    return bh.tocsr()
+	return bh.tocsr()
 
 #function to calculate extrapolation
 def extrap(a_n, a_n1):
@@ -283,7 +313,7 @@ def extrap(a_n, a_n1):
 #first step: solve for u_hat with NS equation (helper function to
 #solve_full_u_hat)
 #dim specifies to solve for u1 or u2
-def solve_u_hat(u_n, u_n_minus, p_n, p_n_minus, phi_n, phi_n_minus,  delta_t, \
+def solve_u_hat(u_n, u_n_minus, p_n, p_n_minus, phi_n, phi_n_minus, delta_t,\
 rho, eta, m, dim):
 	#building LHS
 	constant_coef = scalar_mul(3, m)
@@ -390,10 +420,11 @@ def A_inverse_b(m, h, delta_t, M, epsilon, poisson_b, u):
 	return result
 
 #helper: calculate gamma = -<A^-1 Laplacian(b), b>
+#in order to later calculate <bn,phi_n_plus>
 def gamma(m, h, delta_t, M, epsilon, b, u):
 	poisson_b = poisson_des_n(m, h, 1).dot(b) #b use neumann BC
 	A_term = A_inverse_b(m, h, delta_t, M, epsilon, poisson_b, u)
-	return -M/2 * A_term * b
+	return -M/2 * np.dot(A_term, b)
 
 #helper: compute <b, phi_n+1>, it will also return A^-1*g
 def b_phi_inner_product(m, h, delta_t, M, epsilon, u, phi_n,\
@@ -404,14 +435,15 @@ def b_phi_inner_product(m, h, delta_t, M, epsilon, u, phi_n,\
 	# laplacian b term
 	r_n = helper_r(m, h, phi_n, C0)
 	r_minus = helper_r(m, h, phi_n_minus, C0)
-	laplacian_b_coef = M*(4/3*r_n + 1/6*(b*(-4*phi_n+phi_n_minus)) \
+	laplacian_b_coef = M*(4/3*r_n + 1/6*(np.dot(b,(-4*phi_n+phi_n_minus))) \
 		- 1/3*r_minus)
+	#print("lb",laplacian_b_coef)
 	laplacian_b = poisson_des_n(m, h, laplacian_b_coef).dot(b)
 
 	g = scalar_phi + laplacian_b
 	A_inverse_g = A_inverse_b(m, h, delta_t, M, epsilon, g, u)
 
-	RHS = A_inverse_g * b
+	RHS = np.dot(A_inverse_g, b)
 	#LHS
 	LHS = 1 + gamma(m, h, delta_t, M, epsilon, b, u)
 	
@@ -454,62 +486,106 @@ def solve_real_u(m, h, u_hat, p_n, p_n_plus, delta_t):
 
 #The code below will officially begin iterating through time
 
+def Euler_one_step_helper_u(m, h, delta_t, M, u_n, p, phi, rho, eta, \
+				epsilon, C0, dim):
+	#building LHS
+	constant_coef = scalar_mul(1, m)
+	convection_LHS = gradient_mat(m, h, u_n[0,:], delta_t, 'x') + \
+					gradient_mat(m, h, u_n[1,:], delta_t, 'y')
+	#Laplacian term on the LHS
+	s = -eta*delta_t / rho
+	laplacian = poisson_des(m, h, s)
+	LHS = constant_coef + convection_LHS + laplacian
+
+	#building RHS
+	ind = 0 if dim == 1 else 1 #index for column for u_n and u_n_minus
+	linear_term = u_n[ind,:]
+	#gradient term for mu and p
+	mu = helper_mu(m, h, phi, epsilon, C0)
+	x_or_y = 'x' if dim == 1 else 'y'
+	p_s = -delta_t/rho
+	gradient_term = gradient_mat(m, h, np.ones(m**2), p_s, x_or_y)\
+			.dot(p) + gradient_mat(m, h, phi, p_s, x_or_y).dot(mu)
+
+	RHS = linear_term + gradient_term
+	#finally, solve for u
+	u_hat = spsolve(LHS, RHS)
+	return u_hat
+
+def Euler_one_step_helper_phi(m, h, delta_t, M, epsilon, u, phi, b, C0):
+#This u should be u_n+1 calculated from previous steps
+	#RHS (g_term)
+	# laplacian b term
+	r_n = helper_r(m, h, phi, C0)
+	laplacian_b_coef = M*(1/2*(np.dot(phi, b)) + r_n)
+	laplacian_b = poisson_des_n(m, h, laplacian_b_coef).dot(b)
+
+	g = laplacian_b
+	#calculating A_inverse_g
+	scalar_ = scalar_mul(1/delta_t, m)
+	biharmonic_ = biharmonic(m, h, M*epsilon**2)
+	#divergence u
+	div_u = div_val(m, h, u, 1)
+	A = scalar_ + biharmonic_ + div_u
+	#solve for A_inverse_g
+	A_inverse_g = spsolve(A, g)
+
+	RHS = A_inverse_g * b
+	#LHS
+	poisson_b = poisson_des_n(m, h, 1).dot(b) #b use neumann BC
+	#solve for A_inverse_delta_b
+	A_inverse_delta_b = spsolve(A, poisson_b)
+
+	#LHS ceof
+	LHS = 1 - M * np.dot(A_inverse_delta_b, b) /2
+	b_phi_ip = RHS/LHS
+	phi_n_plus = M * A_inverse_delta_b/2 * b_phi_ip + A_inverse_g
+	return phi_n_plus
+
 #calculate u, phi, p for the first few time steps
 #this delta_t is the delta_t for the first few steps using Euler method
 def Euler_one_step(m, h, delta_t, M, u_n, p, phi, rho, eta, \
 				epsilon, C0):
-	# solve for u_hat
-	u_n_minus = np.zeros((2, m**2))
-	u_n_ = u_n / 4
-	u_hat_1 = solve_u_hat(u_n_, u_n_minus, p, phi, delta_t, rho,\
-					eta, m, 1)
-	u_hat_2 = solve_u_hat(u_n_, u_n_minus, p, phi, delta_t, rho, \
-					eta, m, 2)
-	u_hat = np.vstack((u_hat_1*3, u_hat_2*3))
+	u_hat_1 = Euler_one_step_helper_u(m, h, delta_t, M, u_n, p, phi, rho,\
+				eta, epsilon, C0, 1)
+	u_hat_2 = Euler_one_step_helper_u(m, h, delta_t, M, u_n, p, phi, rho,\
+				eta, epsilon, C0, 2)
+	u_hat = np.vstack((u_hat_1, u_hat_2))
 	# solve for p
 	p_n = p
 	p = solve_p(m, h, u_hat, delta_t, p_n) #this is p_n+1
 	# solve for real u_n+1
 	u = solve_real_u(m, h, u_hat, p_n, p, delta_t) #this is u_n+1
 
-	# solve for phi with u_hat
-	# first, calculate phi_mid, b_n and r
-	phi_mid = helper_phi_mid(m, h, delta_t, phi)
-	b_n = helper_b(m, h, phi_mid, C0)
-	r = helper_r(m, h, phi, C0)
-	# then solve for phi_n+1
-	phi_n = phi/4
-	phi_n_minus = np.zeros(m**2)
-	phi_n_plus = solve_phi(m, h, delta_t, M, epsilon, u_hat, u_n, phi_n, \
-				phi_n_minus, b_n, C0) #this is phi_n+1
-	
-	return u, p, phi_n_plus
+	# solve for phi with u_n+1
+	b_n = helper_b(m, h, phi, C0)
+	phi_plus = Euler_one_step_helper_phi(m, h, delta_t, M, epsilon,\
+		u, phi, b_n, C0)
+	return u, p, phi_plus
 	
 #calculate u, phi, p for the time step using BDF2
-def BDF2_one_step(m, h, delta_t, M, u_n, u_n_minus, p, phi_n, phi_n_minus,\
-			rho, eta, epsilon, C0):
+def BDF2_one_step(m, h, delta_t, M, u_n, u_n_minus, p_n, p_n_minus,\
+			phi_n, phi_n_minus, rho, eta, epsilon, C0):
 	# solve for u_hat
-	u_hat_1 = solve_u_hat(u_n, u_n_minus, p, phi_n, delta_t, rho,\
-					eta, m, 1)
-	u_hat_2 = solve_u_hat(u_n, u_n_minus, p, phi_n, delta_t, rho, \
-					eta, m, 2)
+	u_hat_1 = solve_u_hat(u_n, u_n_minus, p_n, p_n_minus, phi_n,\
+	    phi_n_minus, delta_t, rho, eta, m, 1)
+	u_hat_2 = solve_u_hat(u_n, u_n_minus, p_n, p_n_minus, phi_n,\
+	    phi_n_minus, delta_t, rho, eta, m, 2)
 	u_hat = np.vstack((u_hat_1, u_hat_2))
 
 	# solve for p
-	p_n = p
 	p = solve_p(m, h, u_hat, delta_t, p_n) #this is p_n+1
 	# solve for real u_n+1
 	print("u_hat shape", u_hat.shape)
 	u = solve_real_u(m, h, u_hat, p_n, p, delta_t) #this is u_n+1
 
 	# solve for phi with u_hat
-	# first, calculate phi_mid, b_n and r
-	phi_mid = helper_phi_mid(m, h, delta_t, phi_n)
-	b_n = helper_b(m, h, phi_mid, C0)
-	r = helper_r(m, h, phi_n, C0)
+	# first, calculate b_n and r
+	phi_e = extrap(phi_n, phi_n_minus)
+	b_e = helper_b(m, h, phi_e, C0)
 	# then solve for phi_n+1
-	phi_n_plus = solve_phi(m, h, delta_t, M, epsilon, u_hat, u_n, phi_n, \
-				phi_n_minus, b_n, C0) #this is phi_n+1
+	phi_n_plus = solve_phi(m, h, delta_t, M, epsilon, u, phi_n, \
+				phi_n_minus, b_e, C0) #this is phi_n+1
 	
 	return u, p, phi_n_plus
 
@@ -520,7 +596,7 @@ def time_stepping(m, h, delta_t, t_e, T, x, y, eta, rho, epsilon, M, C0):
 	#calculate the initial values
 	u_init_ = u_init(x, y)
 	phi_init_ = phi_init(x, y)
-	mu_init_ = mu_init(phi_init_, epsilon)
+	mu_init_ = mu_init(m, phi_init_, epsilon)
 	p_init_ = p_init(u_init_, phi_init_, mu_init_, eta, rho, m, h)
 	# changing the initial pressure TODO
 	#p_init_ = np.zeros(m**2)
@@ -530,26 +606,30 @@ def time_stepping(m, h, delta_t, t_e, T, x, y, eta, rho, epsilon, M, C0):
 	delta_t_euler = delta_t / t_e
 	u_n_minus = u_init_
 	u_n = u_init_
-	p = p_init_
-	print("p_init_;", p_init_)#TODO
-	print("u_init_", u_init_)
+	p_n_minus = p_init_
+	p_n = p_init_
+	#print("p_init_;", p_init_)#TODO
+	#print("u_init_", u_init_)
 	
 	phi_n_minus = phi_init_
 	phi_n = phi_init_
-	print("phi_init", phi_init_)
+	#print("phi_init", phi_init_)
 
 
 	for i in range(t_e):
 		if i == 0:
-			u_n, p, phi_n = Euler_one_step(m, h, delta_t_euler, M, \
-					u_n_minus, p, phi_n_minus, rho, eta, epsilon, C0)
+			u_n, p_n, phi_n = Euler_one_step(m, h, delta_t_euler, M, \
+					u_n_minus, p_n, phi_n_minus, rho, eta, epsilon, C0)
 			continue
 		print("i: ", i)#TODO
 		print("u_n shape:", u_n.shape, u_n_minus.shape)
 		u, p, phi = BDF2_one_step(m, h, delta_t_euler, M, \
-				u_n, u_n_minus, p, phi_n, phi_n_minus, rho, eta, \
+				u_n, u_n_minus, p_n, p_n_minus, phi_n, phi_n_minus, rho,eta,\
 				epsilon, C0)
+
 		#update n_minus and n variables
+		p_n_minus = p_n
+		p_n = p
 		u_n_minus = u_n
 		phi_n_minus = phi_n
 		u_n = u
@@ -568,7 +648,8 @@ def time_stepping(m, h, delta_t, t_e, T, x, y, eta, rho, epsilon, M, C0):
 		phi_plot = np.reshape(phi, (m,m))
 		plt.contourf(X, Y, phi_plot)
 		plt.axis('scaled')
-		pplt.title(f"phi {i}")lt.colorbar()
+		plt.title(f"phi {i}")
+		plt.colorbar()
 		plt.show()
 		print("u_n vector:", u_n)
 	
@@ -577,9 +658,11 @@ def time_stepping(m, h, delta_t, t_e, T, x, y, eta, rho, epsilon, M, C0):
 		if i == 0:
 			u_n_minus = u_init_
 			phi_n_minus = phi_init_
-		u, p, phi = BDF2_one_step(m, h, delta_t, M, u_n, u_n_minus, p,\
-				phi_n, phi_n_minus, rho, eta, epsilon, C0)
+		u, p, phi = BDF2_one_step(m, h, delta_t, M, u_n, u_n_minus, p_n,\
+				p_n_minus, phi_n, phi_n_minus, rho, eta, epsilon, C0)
 		#update n_minus and n variable
+		p_n_minus = p_n
+		p_n = p
 		u_n_minus = u_n
 		phi_n_minus = phi_n
 		u_n = u
@@ -624,4 +707,4 @@ def plotting(m, h, delta_t, t_e, T, x, y, eta, rho, epsilon, M, C0):
 	plt.colorbar()
 	plt.show()
 
-plotting(m, delta_x, delta_t, t_e, T, x_mod, y_mod, eta, rho, epsilon, M, C0)
+plotting(m-1, delta_x, delta_t, t_e, T, x_mod, y_mod, eta, rho, epsilon, M, C0)
