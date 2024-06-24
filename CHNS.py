@@ -12,9 +12,9 @@ gamma = 0.05
 epsilon = 1 # 0.04
 Re = 1
 rho = 1/Re
-m = 6 #grid point
-x_0, x_m = 0, 2
-y_0, y_m = 0, 2
+m = 8 #grid point
+x_0, x_m = 0, 1
+y_0, y_m = 0, 1
 h = (x_m - x_0) / m
 
 t_e = 5
@@ -35,41 +35,27 @@ for i in range(m-2):
 y_mod = y_mod.flatten()
 #print(x_mod.shape, y_mod.shape)
 
-'''
-#initial condition for phi
-def phi_init(x, y):
-	first_numerator = np.sqrt((x - 0.75*np.pi)**2 + (y-np.pi)**2) - np.pi/4
-	first_term = np.tanh(first_numerator/(2*epsilon*np.sqrt(2)))
-	second_numerator = np.sqrt((x - 1.25*np.pi)**2 + (y-np.pi)**2)-np.pi/4
-	second_term = np.np.tanh(first_numerator/(2*epsilon*np.sqrt(2)))
-	return first_term * second_term
-#initial condition for u
-def u_init(x, y):
-	u = 0*x + 0*y
-	return u
-'''
-
 #initial condition for phi
 def phi_init(x, y):
 #input x and y should be meshgrid X and Y
 	#phi =\
 	#0.24*np.cos(np.pi*x)*np.cos(2*np.pi*y)+0.4*np.cos(np.pi*x)\
 	#*np.cos(3*np.pi*y)
-	phi = 0.05*np.sin(2*np.pi*x)*np.sin(2*np.pi*y)
+	#phi = 0.05*np.sin(2*np.pi*x)*np.sin(2*np.pi*y)
 	#phi = np.tanh(1/(np.sqrt(2)*epsilon)*(0.25 - np.sqrt((x-0.5)**2 + \
 	#(y-0.5)**2)))
-	#phi = 0.25 + 0.4*np.random.rand(len(x))
+	phi = 0.25 + 0.4*np.random.rand(len(x))
 	#return phi.flatten()
 	return phi
 
 #initial condition for u
 def u_init(x, y):
-	#u1 = -np.sin(np.pi*x)**2*(np.sin(2*np.pi*y))
-	u1 = np.zeros(len(x))
+	u1 = -np.sin(np.pi*x)**2*(np.sin(2*np.pi*y))
+	#u1 = np.zeros(len(x))
 	#u1 = 10*x*y
 
-	#u2 = np.sin(np.pi*y)**2*(np.sin(2*np.pi*x))
-	u2 = np.zeros(len(y))
+	u2 = np.sin(np.pi*y)**2*(np.sin(2*np.pi*x))
+	#u2 = np.zeros(len(y))
 	#u2 = -10*x*y
 
 	u = np.vstack((u1, u2))
@@ -622,10 +608,12 @@ def time_stepping(m, h, delta_t, t_e, T, x, y, eta, rho, epsilon, M, C0):
 					u_n_minus, p_n, phi_n_minus, rho, eta, epsilon, C0)
 			continue
 		print("i: ", i)#TODO
-		print("u_n shape:", u_n.shape, u_n_minus.shape)
 		u, p, phi = BDF2_one_step(m, h, delta_t_euler, M, \
 				u_n, u_n_minus, p_n, p_n_minus, phi_n, phi_n_minus, rho,eta,\
 				epsilon, C0)
+		print("p: ",p) #TODO
+		print("u: ", u)
+		print("phi: ", phi)
 
 		#update n_minus and n variables
 		p_n_minus = p_n
@@ -653,7 +641,7 @@ def time_stepping(m, h, delta_t, t_e, T, x, y, eta, rho, epsilon, M, C0):
 		plt.show()
 		print("u_n vector:", u_n)
 	
-	for i in range(T - 1):
+	for i in range(T):
 		print("i", i)
 		if i == 0:
 			u_n_minus = u_init_
